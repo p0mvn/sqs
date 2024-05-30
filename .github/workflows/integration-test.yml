@@ -11,17 +11,16 @@ on:
     - cron: '0 * * * *'
 
 jobs:
-  integration_test:
-    runs-on: self-hosted
-    strategy:
-      matrix:
-        env: ${{ fromJson(steps.env_matrix.outputs.matrix) }}
+  generate_matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Generate matrix from input or scheduled configuration
-        id: env_matrix
+      - name: Generate matrix for workflow_dispatch
+        id: set-matrix
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             echo '{ "matrix": [' > matrix.json
@@ -38,6 +37,12 @@ jobs:
             echo "::set-output name=matrix::$(<matrix.json)"
           fi
 
+  integration_test:
+    needs: generate_matrix
+    runs-on: self-hosted
+    strategy:
+      matrix: ${{ fromJson(needs.generate_matrix.outputs.matrix) }}
+    steps:
       - uses: ./.github/workflows/integration-test-steps.yml
         with:
           sqs_endpoint: ${{ matrix.sqs_endpoint }}
