@@ -3,80 +3,71 @@ name: SQS Integration Test
 on:
   workflow_dispatch:
     inputs:
-      environments:
-        description: 'Enter comma-separated list of environments (e.g., stage,prod,eu).'
+      environment:
+        description: 'Select the environment to test'
         required: true
+        type: choice
+        options:
+          - stage
+          - prod
         default: 'stage'
   schedule:
     - cron: '0 * * * *'
 
 jobs:
-  generate_matrix:
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Generate matrix for workflow_dispatch or schedule
-        id: set-matrix
-        run: |
-          echo "Generating matrix..."
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo '{"include": [' > matrix.json
-            IFS=',' read -ra ADDR <<< "${{ github.event.inputs.environments }}"
-            for env in "${ADDR[@]}"; do
-              endpoint=$(jq -r --arg env "$env" '.[$env]' .github/workflows/env_mappings.json)
-              if [[ -n "$endpoint" && "$endpoint" != "null" ]]; then
-                echo "{\"env\":\"$env\", \"sqs_endpoint\":\"$endpoint\"}," >> matrix.json
-              fi
-            done
-            # Remove trailing comma and close JSON array
-            sed -i '$ s/,$//' matrix.json
-            echo ']}' >> matrix.json
-          else
-            jq -c 'to_entries | map({"env": .key, "sqs_endpoint": .value}) | {"include": .}' .github/workflows/env_mappings.json > matrix.json
-          fi
-
-          echo "Generated matrix.json content:"
-          cat matrix.json
-
-          # Validate JSON
-          if ! jq empty matrix.json; then
-            echo "Invalid JSON generated"
-            exit 1
-          fi
-
-          MATRIX=$(cat matrix.json)
-          if [[ -z "$MATRIX" || "$MATRIX" == "null" ]]; then
-            echo "Matrix generation failed."
-            exit 1
-          fi
-
-          echo "matrix<<EOF" >> $GITHUB_OUTPUT
-
-          # here we can place the command that will generate multi-line text
-          echo $MATRIX >> $GITHUB_OUTPUT
-
-          echo "EOF" >> $GITHUB_OUTPUT
-
-  integration_test:
-    needs: generate_matrix
+  manual_integration_test:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: self-hosted
     strategy:
-      matrix: ${{ fromJson(needs.generate_matrix.outputs.matrix).include }}
+      matrix:
+        env:
+          - stage
+          - prod
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+      
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
+      
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           if [ -f tests/requirements.txt ]; then pip install -r tests/requirements.txt; fi
+      
+      - name: Execute tests
+        run: pytest -s -n auto
+        env:
+          SQS_DOMAIN: ${{ matrix.env }}
+          
+  scheduled_integration_test:
+    if: github.event_name == 'schedule'
+    runs-on: self-hosted
+    strategy:
+      matrix:
+        include:
+          - env: stage
+            sqs_endpoint: 'https://sqs.stage.osmosis.zone'
+          - env: prod
+            sqs_endpoint: 'https://sqs.osmosis.zone'
+          - env: eu
+            sqs_endpoint: 'https://sqs.eu.osmosis.zone'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f tests/requirements.txt ]; then pip install -r tests/requirements.txt; fi
+      
       - name: Execute tests
         run: pytest -s -n auto
         env:
