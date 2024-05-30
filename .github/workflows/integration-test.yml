@@ -1,0 +1,43 @@
+name: SQS Integration Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      environments:
+        description: 'Enter comma-separated list of environments (e.g., stage,prod,eu).'
+        required: true
+        default: 'stage'
+  schedule:
+    - cron: '0 * * * *'
+
+jobs:
+  integration_test:
+    runs-on: self-hosted
+    strategy:
+      matrix:
+        env: ${{ fromJson(steps.env_matrix.outputs.matrix) }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Generate matrix from input or scheduled configuration
+        id: env_matrix
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo '{ "matrix": [' > matrix.json
+            IFS=',' read -ra ADDR <<< "${{ github.event.inputs.environments }}"
+            for i in "${ADDR[@]}"; do
+              jq --arg env "$i" '.[$env]' env_mappings.json | xargs -I {} echo '{"env":"'$i'", "sqs_endpoint": "{}"},' >> matrix.json
+            done
+            echo 'null]}' >> matrix.json
+            sed '$ s/.$//' matrix.json > final.json
+            jq -c . final.json > matrix.json
+            echo "::set-output name=matrix::$(<matrix.json)"
+          else
+            jq -c '[.[] | {"env": (. | keys_unsorted[]), "sqs_endpoint": .[]} ]' env_mappings.json > matrix.json
+            echo "::set-output name=matrix::$(<matrix.json)"
+          fi
+
+      - uses: ./.github/workflows/integration-test-steps.yml
+        with:
+          sqs_endpoint: ${{ matrix.sqs_endpoint }}

@@ -1,0 +1,4 @@
+{
+    "stage": "https://sqs.stage.osmosis.zone",
+    "prod": "https://sqs.osmosis.zone"
+  }
