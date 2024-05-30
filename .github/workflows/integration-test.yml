@@ -22,16 +22,17 @@ jobs:
       - name: Generate matrix for workflow_dispatch
         id: set-matrix
         run: |
-          MATRIX=""
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             echo '{ "matrix": [' > matrix.json
             IFS=',' read -ra ADDR <<< "${{ github.event.inputs.environments }}"
             for i in "${ADDR[@]}"; do
-              jq --arg env "$i" '.[$env]' .github/workflows/env_mappings.json | xargs -I {} echo '{"env":"'$i'", "sqs_endpoint": "{}"},' >> matrix.json
+              endpoint=$(jq -r --arg env "$i" '.[$env]' .github/workflows/env_mappings.json)
+              if [[ -n "$endpoint" && "$endpoint" != "null" ]]; then
+                echo "{\"env\":\"$i\", \"sqs_endpoint\":\"$endpoint\"}," >> matrix.json
+              fi
             done
-            echo '{}]}' >> matrix.json
-            sed -i '$d' matrix.json
-            echo ']}' >> matrix.json
+            echo "{}]}" >> matrix.json
+            sed -i '$ s/},{}]$/}]/' matrix.json
           else
             jq -c '[.[] | {"env": (. | keys_unsorted[]), "sqs_endpoint": .[]} ]' .github/workflows/env_mappings.json > matrix.json
           fi
@@ -40,7 +41,7 @@ jobs:
           cat matrix.json
 
           MATRIX=$(cat matrix.json)
-          if [[ -z "$MATRIX" ]]; then
+          if [[ -z "$MATRIX" || "$MATRIX" == "null" ]]; then
             echo "Matrix generation failed."
             exit 1
           fi
