@@ -24,18 +24,23 @@ jobs:
         run: |
           echo "Generating matrix..."
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo '{ "matrix": [' > matrix.json
+            echo '{"include": [' > matrix.json
             IFS=',' read -ra ADDR <<< "${{ github.event.inputs.environments }}"
+            first=true
             for env in "${ADDR[@]}"; do
               endpoint=$(jq -r --arg env "$env" '.[$env]' .github/workflows/env_mappings.json)
               if [[ -n "$endpoint" && "$endpoint" != "null" ]]; then
-                echo "{\"env\":\"$env\", \"sqs_endpoint\":\"$endpoint\"}," >> matrix.json
+                if [ "$first" = true ]; then
+                  echo "{\"env\":\"$env\", \"sqs_endpoint\":\"$endpoint\"}" >> matrix.json
+                  first=false
+                else
+                  echo ",{\"env\":\"$env\", \"sqs_endpoint\":\"$endpoint\"}" >> matrix.json
+                fi
               fi
             done
-            echo "{}]}" >> matrix.json
-            sed -i '$ s/},{}]$/}]/' matrix.json
+            echo ']}' >> matrix.json
           else
-            jq -c 'to_entries | map({"env": .key, "sqs_endpoint": .value})' .github/workflows/env_mappings.json > matrix.json
+            jq -c 'to_entries | map({"env": .key, "sqs_endpoint": .value}) | {"include": .}' .github/workflows/env_mappings.json > matrix.json
           fi
 
           echo "Generated matrix.json content:"
@@ -47,7 +52,7 @@ jobs:
             exit 1
           fi
 
-          echo "{matrix}={$MATRIX}" >> $GITHUB_OUTPUT
+          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
 
   integration_test:
     needs: generate_matrix
@@ -57,6 +62,15 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - uses: ./.github/workflows/integration-test-steps.yml
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          sqs_endpoint: ${{ matrix.sqs_endpoint }}
+          python-version: '3.10'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f tests/requirements.txt ]; then pip install -r tests/requirements.txt; fi
+      - name: Execute tests
+        run: pytest -s -n auto
+        env:
+          SQS_DOMAIN: ${{ matrix.sqs_endpoint }}
