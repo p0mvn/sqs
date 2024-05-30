@@ -34,7 +34,7 @@ jobs:
             echo "{}]}" >> matrix.json
             sed -i '$ s/},{}]$/}]/' matrix.json
           else
-            jq -c '[.[] | {"env": (. | keys_unsorted[]), "sqs_endpoint": .[]} ]' .github/workflows/env_mappings.json > matrix.json
+            jq -c 'to_entries | map({"env": .key, "sqs_endpoint": .value})' .github/workflows/env_mappings.json > matrix.json
           fi
 
           echo "Generated matrix.json content:"
