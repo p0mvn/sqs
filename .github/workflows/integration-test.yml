@@ -51,7 +51,7 @@ jobs:
 
   integration_test:
     needs: generate_matrix
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     strategy:
       matrix: ${{ fromJson(needs.generate_matrix.outputs.matrix) }}
     steps:
