@@ -19,16 +19,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Generate matrix for workflow_dispatch
+      - name: Generate matrix for workflow_dispatch or schedule
         id: set-matrix
         run: |
+          echo "Generating matrix..."
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             echo '{ "matrix": [' > matrix.json
             IFS=',' read -ra ADDR <<< "${{ github.event.inputs.environments }}"
-            for i in "${ADDR[@]}"; do
-              endpoint=$(jq -r --arg env "$i" '.[$env]' .github/workflows/env_mappings.json)
+            for env in "${ADDR[@]}"; do
+              endpoint=$(jq -r --arg env "$env" '.[$env]' .github/workflows/env_mappings.json)
               if [[ -n "$endpoint" && "$endpoint" != "null" ]]; then
-                echo "{\"env\":\"$i\", \"sqs_endpoint\":\"$endpoint\"}," >> matrix.json
+                echo "{\"env\":\"$env\", \"sqs_endpoint\":\"$endpoint\"}," >> matrix.json
               fi
             done
             echo "{}]}" >> matrix.json
