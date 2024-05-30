@@ -26,18 +26,14 @@ jobs:
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             echo '{"include": [' > matrix.json
             IFS=',' read -ra ADDR <<< "${{ github.event.inputs.environments }}"
-            first=true
             for env in "${ADDR[@]}"; do
               endpoint=$(jq -r --arg env "$env" '.[$env]' .github/workflows/env_mappings.json)
               if [[ -n "$endpoint" && "$endpoint" != "null" ]]; then
-                if [ "$first" = true ]; then
-                  echo "{\"env\":\"$env\", \"sqs_endpoint\":\"$endpoint\"}" >> matrix.json
-                  first=false
-                else
-                  echo ",{\"env\":\"$env\", \"sqs_endpoint\":\"$endpoint\"}" >> matrix.json
-                fi
+                echo "{\"env\":\"$env\", \"sqs_endpoint\":\"$endpoint\"}," >> matrix.json
               fi
             done
+            # Remove trailing comma and close JSON array
+            sed -i '$ s/,$//' matrix.json
             echo ']}' >> matrix.json
           else
             jq -c 'to_entries | map({"env": .key, "sqs_endpoint": .value}) | {"include": .}' .github/workflows/env_mappings.json > matrix.json
@@ -56,7 +52,7 @@ jobs:
 
   integration_test:
     needs: generate_matrix
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     strategy:
       matrix: ${{ fromJson(needs.generate_matrix.outputs.matrix).include }}
     steps:
