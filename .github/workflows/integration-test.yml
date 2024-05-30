@@ -31,12 +31,13 @@ jobs:
             echo '{}]}' >> matrix.json
             sed -i '$d' matrix.json
             echo ']}' >> matrix.json
-            jq -c . matrix.json > matrix.json
-            echo "::set-output name=matrix::$(<matrix.json)"
           else
             jq -c '[.[] | {"env": (. | keys_unsorted[]), "sqs_endpoint": .[]} ]' .github/workflows/env_mappings.json > matrix.json
-            echo "::set-output name=matrix::$(<matrix.json)"
           fi
+          
+          cat matrix.json
+          MATRIX=$(cat matrix.json)
+          echo "::set-output name=matrix::$MATRIX"
 
   integration_test:
     needs: generate_matrix
