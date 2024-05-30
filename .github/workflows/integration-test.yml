@@ -22,6 +22,7 @@ jobs:
       - name: Generate matrix for workflow_dispatch
         id: set-matrix
         run: |
+          MATRIX=""
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             echo '{ "matrix": [' > matrix.json
             IFS=',' read -ra ADDR <<< "${{ github.event.inputs.environments }}"
@@ -34,9 +35,16 @@ jobs:
           else
             jq -c '[.[] | {"env": (. | keys_unsorted[]), "sqs_endpoint": .[]} ]' .github/workflows/env_mappings.json > matrix.json
           fi
-          
+
+          echo "Generated matrix.json content:"
           cat matrix.json
+
           MATRIX=$(cat matrix.json)
+          if [[ -z "$MATRIX" ]]; then
+            echo "Matrix generation failed."
+            exit 1
+          fi
+
           echo "::set-output name=matrix::$MATRIX"
 
   integration_test:
@@ -45,6 +53,8 @@ jobs:
     strategy:
       matrix: ${{ fromJson(needs.generate_matrix.outputs.matrix) }}
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
       - uses: ./.github/workflows/integration-test-steps.yml
         with:
           sqs_endpoint: ${{ matrix.sqs_endpoint }}
