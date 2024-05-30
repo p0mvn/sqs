@@ -48,7 +48,12 @@ jobs:
             exit 1
           fi
 
-          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+          echo "matrix<<EOF" >> $GITHUB_OUTPUT
+
+          # here we can place the command that will generate multi-line text
+          echo $MATRIX >> $GITHUB_OUTPUT
+
+          echo "EOF" >> $GITHUB_OUTPUT
 
   integration_test:
     needs: generate_matrix
