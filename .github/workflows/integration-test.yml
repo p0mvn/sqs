@@ -28,9 +28,10 @@ jobs:
             for i in "${ADDR[@]}"; do
               jq --arg env "$i" '.[$env]' .github/workflows/env_mappings.json | xargs -I {} echo '{"env":"'$i'", "sqs_endpoint": "{}"},' >> matrix.json
             done
-            echo 'null]}' >> matrix.json
-            sed '$ s/.$//' matrix.json > final.json
-            jq -c . final.json > matrix.json
+            echo '{}]}' >> matrix.json
+            sed -i '$d' matrix.json
+            echo ']}' >> matrix.json
+            jq -c . matrix.json > matrix.json
             echo "::set-output name=matrix::$(<matrix.json)"
           else
             jq -c '[.[] | {"env": (. | keys_unsorted[]), "sqs_endpoint": .[]} ]' .github/workflows/env_mappings.json > matrix.json
