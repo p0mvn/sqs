@@ -47,7 +47,7 @@ jobs:
             exit 1
           fi
 
-          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+          echo "{matrix}={$MATRIX}" >> $GITHUB_OUTPUT
 
   integration_test:
     needs: generate_matrix
