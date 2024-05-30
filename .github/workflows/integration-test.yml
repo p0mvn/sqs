@@ -42,6 +42,12 @@ jobs:
           echo "Generated matrix.json content:"
           cat matrix.json
 
+          # Validate JSON
+          if ! jq empty matrix.json; then
+            echo "Invalid JSON generated"
+            exit 1
+          fi
+
           MATRIX=$(cat matrix.json)
           if [[ -z "$MATRIX" || "$MATRIX" == "null" ]]; then
             echo "Matrix generation failed."
