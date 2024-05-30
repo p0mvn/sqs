@@ -47,13 +47,13 @@ jobs:
             exit 1
           fi
 
-          echo "::set-output name=matrix::$MATRIX"
+          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
 
   integration_test:
     needs: generate_matrix
     runs-on: ubuntu-latest
     strategy:
-      matrix: ${{ fromJson(needs.generate_matrix.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.generate_matrix.outputs.matrix).include }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
